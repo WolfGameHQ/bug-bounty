@@ -12,7 +12,7 @@ Vulnerabilities should be submitted via this [Google Form](https://docs.google.c
 
 ## Code For Review
 
-The scope of the Bug Bounty is for the two contracts: Allegiance.sol. Only this new, specifically named smart contract is in scope. Bugs in the already deployed smart contracts are not eligible for a bounty.
+The scope of the Bug Bounty is for the contract: Allegiance.sol. Only this new, specifically named smart contract is in scope.
 
 Happy Hunting,
 The Shepherd & The Herdsman
