@@ -480,7 +480,7 @@ contract Allegiance is
    */
   function _mintReward(uint256 amount) internal {
     // wool pouches automatically have 10,000 WOOL available once minted
-    if (amount >= 10000 ether) { 
+    if (amount > 10000 ether) { 
       woolPouch.mint(_msgSender(), uint128(amount), 365 * 4); // 4 year vesting
     } else { // if user won < 10,000 WOOL, they receive WOOL instead of a Pouch
       wool.mint(_msgSender(), amount);
