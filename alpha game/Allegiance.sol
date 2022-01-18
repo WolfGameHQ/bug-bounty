@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: NO LICENSE  
+// SPDX-License-Identifier: MIT  
+// Copyright 2022 Wolf Game
 
 pragma solidity ^0.8.0;
 
 import "./WoolfReborn.sol";
-import "./Woolf.sol";
 import "./WoolPouch.sol";
 
 contract Allegiance is 
@@ -109,7 +109,8 @@ contract Allegiance is
   // Emitted when a pack attacks another one
   event PackAttacked(
     uint256 pack,
-    uint256 target
+    uint256 target,
+    bool vulnerable
   );
 
   // Emitted when a pack defends itself
@@ -117,7 +118,15 @@ contract Allegiance is
     uint256 pack
   );
 
+  // Emitted when the game ends
+  event GameEnded(
+    uint256 timestamp
+  );
+
+  // whether or not alphas are allowed to start packs
   bool public alphasCanStartPacks;
+  // whether or not non-alphas can stake tokens or WOOL
+  bool public gameIsActive;
   // timestamp of when game is ended to calculate seconds staked for each token
   uint256 public gameEndTimestamp;
   // array of percentages each team wins (1st -> last)
@@ -181,6 +190,7 @@ contract Allegiance is
     WINNER_POT = 500000000 ether;
     gameEndTimestamp = 0;
     alphasCanStartPacks = true;
+    gameIsActive = false;
   }
 
   /** EXTERNAL */
@@ -216,6 +226,8 @@ contract Allegiance is
       require(pack == tokenId, "YOURE AN ALPHA. START YOUR OWN PACK");
       alphaWolves.push(tokenId);
       packs[tokenId].enabled = true;
+    } else {
+      require(gameIsActive, "GAME IS NOT OPEN YET");
     }
 
     require(packs[pack].enabled, "NOT A PACK");
@@ -284,7 +296,7 @@ contract Allegiance is
    */
   function leavePack(uint256[] calldata tokenIds) external whenNotPaused {
     require(gameEndTimestamp == 0, "GAME HAS ENDED");
-    require(tokenIds.length > 0, "GOTTA TRANSFER SOMETHING");
+    require(tokenIds.length > 0, "GOTTA UNSTAKE SOMETHING");
     for (uint i = 0; i < tokenIds.length; i++) {
       _leavePack(tokenIds[i]);
     }
@@ -314,6 +326,7 @@ contract Allegiance is
    * @param amount the amount of WOOL to stake
    */
   function stakeWool(uint256 pack, uint256 amount) external whenNotPaused {
+    require(gameIsActive, "GAME IS NOT OPEN YET");
     require(gameEndTimestamp == 0, "GAME HAS ENDED");
     require(packs[pack].enabled, "MUST STAKE IN A PACK");
     require(amount > 0, "GOTTA STAKE SOMETHING");
@@ -325,7 +338,8 @@ contract Allegiance is
     stake.wool += uint176(amount);
     packs[pack].wool += amount;
 
-    // burn here to cirumvent the need for an approval
+
+    // burn here to circumvent the need for an approval
     // side effect: WOOL contract's totalSupply() will be affected through the duration of the game
     wool.burn(_msgSender(), amount); 
 
@@ -398,7 +412,7 @@ contract Allegiance is
     packs[alphaId].balance = 0; // discharge all accrued woolSeconds
     _updatePack(target); // get the latest score
 
-    emit PackAttacked(alphaId, target);
+    emit PackAttacked(alphaId, target, packs[target].defense == 0);
 
     // if the target has defenses, decrement
     if (packs[target].defense > 0) {
@@ -479,12 +493,8 @@ contract Allegiance is
    * send a wool pouch or WOOL to a user depending on their earnings
    */
   function _mintReward(uint256 amount) internal {
-    // wool pouches automatically have 10,000 WOOL available once minted
-    if (amount > 10000 ether) { 
-      woolPouch.mint(_msgSender(), uint128(amount), 365 * 4); // 4 year vesting
-    } else { // if user won < 10,000 WOOL, they receive WOOL instead of a Pouch
-      wool.mint(_msgSender(), amount);
-    }
+    // wool pouches from alpha game do not have any initially claimable WOOL
+    woolPouch.mintWithoutClaimable(_msgSender(), uint128(amount), 365 * 4); // 4 year vesting
   }
 
   /**
@@ -546,7 +556,7 @@ contract Allegiance is
 
     // score is increased by token values x time
     p.score += p.tokenValue * elapsed;
-    // tokenValueSeconds is ncreased by token values x time
+    // tokenValueSeconds is increased by token values x time
     p.tokenValueSeconds += p.tokenValue * elapsed;
     // balance is increased by wool x time
     p.balance += p.wool * elapsed;
@@ -591,6 +601,7 @@ contract Allegiance is
    * @param pack the pack to calculate winnings for
    */
   function _packWinnings(uint256 pack) internal view returns (uint256) {
+    if (rankings[pack] == 0) return 0;
     return winningPercentages[rankings[pack] - 1] * WINNER_POT / 10000 + packs[pack].guaranteedRewards;
   }
 
@@ -630,7 +641,7 @@ contract Allegiance is
       for (j = 0; j < length; j++) {
         if (rankings[alphaWolves[j]] != 0) continue;
         current = packs[alphaWolves[j]].score;
-        if (current > max) {
+        if (current >= max) {
           max = current;
           wolf = alphaWolves[j];
         }
@@ -640,6 +651,7 @@ contract Allegiance is
 
     // the games final calculations for earnings are based off this time
     gameEndTimestamp = block.timestamp;
+    emit GameEnded(block.timestamp);
   }
 
   /**
@@ -655,5 +667,12 @@ contract Allegiance is
    */
   function setAlphasCanStartPacks(bool _a) external onlyOwner {
     alphasCanStartPacks = _a;
+  }
+
+  /**
+   * enables owner to enable / disable non-alphas tokens or WOOL from being staked 
+   */
+  function setGameIsActive(bool _a) external onlyOwner {
+    gameIsActive = _a;
   }
 }

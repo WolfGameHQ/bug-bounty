@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: NO LICENSE  
+// SPDX-License-Identifier: MIT LICENSE  
 
 pragma solidity ^0.8.0;
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+import "./Initializable.sol";
+import "./OwnableUpgradeable.sol";
+import "./PausableUpgradeable.sol";
+import "./ERC721Upgradeable.sol";
+import "./Strings.sol";
 import "./WOOL.sol";
-import "./interfaces/IDateTime.sol";
+import "./IDateTime.sol";
 
 contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable {
   
@@ -17,9 +17,8 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
   ==============
 
   - Claiming can lead to a tiny round down. This can result in negligible, but real losses in dust. This is a tradeoff made to save gas by not requiring storage of already claimed balances.
-
   - Frontrunning protection: Transfers will revert if WOOL was claimed in the same block.
-    Still, users need to be careful when buying WOOL pouches, as the unclaimed WOOL displayed on websites like OpenSea can be out of sync with the blockchain.
+    We specifically do not show currently claimable balance as part of the metadata to reduce user confusion.
     A longer cooldown on transfers was considered, but ultimately not implemented as it introduces UX issues and additional complexity.
   
   */
@@ -39,7 +38,7 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
   uint256 public constant START_VALUE = 10000 ether;
 
   struct Pouch {
-    bool initialClaimed;
+    bool initialClaimed; // whether or not first 10,000 WOOL has been claimed
     uint16 duration; // stored in days, maxed at 2^16 days
     uint56 lastClaimTimestamp; // stored in seconds, uint56 can store 2 billion years 
     uint56 startTimestamp; // stored in seconds, uint56 can store 2 billion years 
@@ -83,6 +82,23 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
     emit WoolClaimed(_msgSender(), tokenId, available);
   }
 
+  function claimMany(uint256[] calldata tokenIds) external whenNotPaused {
+    uint256 available;
+    uint256 totalAvailable;
+    for (uint i = 0; i < tokenIds.length; i++) {
+      require(ownerOf(tokenIds[i]) == _msgSender(), "SWIPER NO SWIPING");
+      available = amountAvailable(tokenIds[i]);
+      Pouch storage pouch = pouches[tokenIds[i]];
+      pouch.lastClaimTimestamp = uint56(block.timestamp);
+      if (!pouch.initialClaimed) pouch.initialClaimed = true;
+      emit WoolClaimed(_msgSender(), tokenIds[i], available);
+      
+      totalAvailable += available;
+    }
+    require(totalAvailable > 0, "NO MORE EARNINGS AVAILABLE");
+    wool.mint(_msgSender(), totalAvailable);
+  }
+
   /**
    * the amount of WOOL currently available to claim in a WOOL pouch
    * @param tokenId the token to check the WOOL for
@@ -118,6 +134,21 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
     _mint(to, minted);
   }
 
+  function mintWithoutClaimable(address to, uint128 amount, uint16 duration) external {
+    require(controllers[msg.sender], "Only controllers can mint");
+    pouches[++minted] = Pouch({
+      initialClaimed: true,
+      duration: duration,
+      lastClaimTimestamp: uint56(block.timestamp),
+      startTimestamp: uint56(block.timestamp),
+      amount: uint120(amount)
+    });
+    _mint(to, minted);
+  }
+
+  /** 
+   Override to make sure that transfers can't be frontrun
+   */
   function transferFrom(
         address from,
         address to,
@@ -128,6 +159,9 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
         _transfer(from, to, tokenId);
     }
 
+  /** 
+   Override to make sure that transfers can't be frontrun
+   */
   function safeTransferFrom(
         address from,
         address to,
@@ -175,20 +209,22 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
 
   function generateSVG(uint256 tokenId) internal view returns (string memory) {
     Pouch memory pouch = pouches[tokenId];
-    uint256 endTime = uint256(pouch.startTimestamp) + uint256(pouch.duration) * SECONDS_PER_DAY;
-    uint256 guaranteed;
-    if (endTime > pouch.lastClaimTimestamp)
-      guaranteed = (pouch.initialClaimed ? 0 : START_VALUE) + (endTime - pouch.lastClaimTimestamp) * uint256(pouch.amount) / (uint256(pouch.duration) * 1 days) - amountAvailable(tokenId);
+    uint256 duration = uint256(pouch.duration) * SECONDS_PER_DAY;
+    uint256 endTime = uint256(pouch.startTimestamp) + duration;
+    uint256 locked;
+    uint256 daysRemaining;
+    if (endTime > block.timestamp) {
+      locked = (endTime - block.timestamp) * uint256(pouch.amount) / duration;
+      daysRemaining = (endTime - block.timestamp) / SECONDS_PER_DAY;
+    }
     return string(abi.encodePacked(
       '<svg id="woolpouch" width="100%" height="100%" version="1.1" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
       '<image x="0" y="0" width="64" height="64" image-rendering="pixelated" preserveAspectRatio="xMidYMid" xlink:href="data:image/gif;base64,',gif,
-      '"/><text font-family="monospace"><tspan x="4" y="4" font-size="0.25em">Remaining WOOL:</tspan><tspan id="g" x="44" y="4" font-size="0.25em">',
-      (guaranteed / 1 ether).toString(),
-      '</tspan></text><text font-family="monospace"><tspan x="4" y="9" font-size="0.25em">Claimable WOOL:</tspan><tspan id="b" x="44" y="9" font-size="0.25em">',
-      (amountAvailable(tokenId) / 1 ether).toString(),
-      '</tspan></text>'//<text fill="red" font-family="monospace"><tspan x="1" y="13" font-size="0.125em">Assume that if you buy, there will be ',
-      //(guaranteed / 1 ether).toString(),
-      //' available to claim</tspan></text>',
+      '"/><text font-family="monospace"><tspan x="13" y="4" font-size="0.25em">Locked WOOL:</tspan><tspan id="g" x="38" y="4" font-size="0.25em">',
+      (locked / 1 ether).toString(),
+      '</tspan></text><text font-family="monospace"><tspan x="9" y="9" font-size="0.25em">Unlock Period:</tspan><tspan id="b" x="38" y="9" font-size="0.25em">',
+      (daysRemaining).toString(),
+      ' Days</tspan></text><text font-family="monospace"><tspan x="4" y="13" font-size="0.15em">Before transfer, remember to claim unlocked WOOL</tspan></text>',
       '</svg>'
     ));
   }
@@ -217,29 +253,27 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
    */
   function compileAttributes(uint256 tokenId) internal view returns (string memory) {
     Pouch memory pouch = pouches[tokenId];
-    uint256 endTime = uint256(pouch.startTimestamp) + uint256(pouch.duration) * SECONDS_PER_DAY;
-    uint256 guaranteed;
-    if (endTime > pouch.lastClaimTimestamp)
-      guaranteed = (pouch.initialClaimed ? 0 : START_VALUE) + (endTime - pouch.lastClaimTimestamp) * uint256(pouch.amount) / (uint256(pouch.duration) * 1 days) - amountAvailable(tokenId);
+    uint256 duration = uint256(pouch.duration) * SECONDS_PER_DAY;
+    uint256 endTime = uint256(pouch.startTimestamp) + duration;
+    uint256 locked;
+    uint256 daysRemaining;
+    if (endTime > block.timestamp) {
+      locked = (endTime - block.timestamp) * uint256(pouch.amount) / duration;
+      daysRemaining = (endTime - block.timestamp) / SECONDS_PER_DAY;
+    }
     string memory attributes = string(abi.encodePacked(
-      attributeForTypeAndValue("Initial Balance", 
-        uint256((pouch.amount + START_VALUE) / 1 ether).toString(),
-      true),',',
-      attributeForTypeAndValue("Remaining Balance", 
-        uint256(guaranteed / 1 ether).toString(),
-      true),',',
-      attributeForTypeAndValue("Available to Claim", (
-        amountAvailable(tokenId) / 1 ether).toString(), 
-      true),','
+      attributeForTypeAndValue("Locked WOOL", 
+        uint256(locked / 1 ether).toString(),
+      false),',',
+      attributeForTypeAndValue("Time Remaining", 
+        string(abi.encodePacked(
+          daysRemaining.toString(),
+          " Days"
+        )),
+      false),','
     ));
     attributes = string(abi.encodePacked(
       attributes,
-      attributeForTypeAndValue("Time Remaining", 
-        string(abi.encodePacked(
-          uint256((block.timestamp > endTime ? 0 : endTime - block.timestamp) / SECONDS_PER_DAY).toString(),
-          " Days"
-        )),
-      false),',',
       '{"trait_type":"Last Refreshed","display_type":"date","value":',
       block.timestamp.toString(),
       '},',
@@ -275,7 +309,7 @@ contract WoolPouch is ERC721Upgradeable, OwnableUpgradeable, PausableUpgradeable
     string memory metadata = string(abi.encodePacked(
       '{"name": "WOOL Pouch #',
       tokenId.toString(),
-      '", "description": "An NFT that unlocks WOOL over time. BE AWARE: Opensea may not show the most up to date balance of this pouch. Make sure to refresh its metadata. We also suggest not bidding on this token because the seller could claim its WOOL before accepting your offer.",',
+      '","description": "Sellers: before listing, claim any unlocked WOOL in your Pouch on the Wolf Game site.<br /><br />Buyers: When you purchase a WOOL Pouch, assume the previous owner has already claimed its unlocked WOOL. Locked WOOL, which unlocks over time, will be displayed on the image. Refresh the metadata to see the most up to date values.",',
       '"image": "data:image/svg+xml;base64,',
       base64(bytes(generateSVG(tokenId))),
       '", "attributes":',
