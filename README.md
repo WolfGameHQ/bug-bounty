@@ -32,9 +32,9 @@ The following smart contracts are currently in scope:
 
 - Wool Pouch [Proxy](https://etherscan.io/address/0xb76FBBB30e31F2c3BDaA2466CfB1CfE39b220D06#code) [Implementation](https://etherscan.io/address/0x425d27fae9b47e18278b746675002bca8d94e2f0#code) [Github](riskygame/WoolPouch.sol)
 
-- Risky Game [Proxy](https://etherscan.io/address/0x830050A92e1694a2044dD1DDD1395E2CDadA8f2B#code) [Implementation](https://etherscan.io/address/0x867d1ef01122c87b1a5ee07effd06dc9c906f437#code) [Github](alpha%20game/RiskyGame.sol)
+- Risky Game [Proxy](https://etherscan.io/address/0x830050A92e1694a2044dD1DDD1395E2CDadA8f2B#code) [Implementation](https://etherscan.io/address/0x867d1ef01122c87b1a5ee07effd06dc9c906f437#code) [Github](riskygame/RiskyGame.sol)
 
-- Allegiance [Proxy](https://etherscan.io/address/0xd3a316d5fa3811553f67d9974e457c37d1c098b8#code) [Implementation](https://etherscan.io/address/0x605e768f4f22fcfb101dea87487d94387ad6e35d#code) [Github](riskygame/RiskyGame.sol)
+- Allegiance [Proxy](https://etherscan.io/address/0xd3a316d5fa3811553f67d9974e457c37d1c098b8#code) [Implementation](https://etherscan.io/address/0x605e768f4f22fcfb101dea87487d94387ad6e35d#code) [Github](alpha%20game/Allegiance.sol)
 
 Happy Hunting,
 
