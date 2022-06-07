@@ -40,6 +40,10 @@ The following smart contracts are currently in scope:
 
 - Farmer Gems [Github](cave%20game/FarmerGem.sol)
 
+- Cave Game Pouch Claim [Github](post%20cave%20game/CaveGamePouchClaim.sol)
+
+- Gem Redemption [Github](post%20cave%20game/GemRedemption.sol)
+
 Happy Hunting,
 
 The Shepherd & The Herdsman
