@@ -51,6 +51,17 @@ contract FarmerGem is
   }
 
   /**
+   * burns tokens from a specified address
+   * @param owner the owner fo the tokens
+   * @param id the ID of the token to burn
+   * @param amount the number of tokens to burn
+   */
+  function burn(address owner, uint256 id, uint256 amount) external {
+    require(controllers[_msgSender()] == true, "Only controllers can burn");
+    _burn(owner, id, amount);
+  }
+
+  /**
    * returns the URI of a given token
    * @param tokenId the ID of the token
    */
