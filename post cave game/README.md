@@ -1,4 +1,4 @@
-# Cave Game Bug Bounty
+# Post Cave Game Bug Bounty
 ​
 This repository contains the code that will be used after Cave Game
 ​
