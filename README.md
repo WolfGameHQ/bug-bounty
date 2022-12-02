@@ -13,9 +13,6 @@ The Herdsman, a friend & protector of the game, audits all Wolf Game smart contr
 
 - [Building a secure NFT gaming experience. A Herdsman’s diary #1](https://muellerberndt.medium.com/building-a-secure-nft-gaming-experience-a-herdsmans-diary-1-91aab11139dc)
 
-## Bounties Paid: $73,500 
-Updated 04/08/2022
-
 ## Bug Bounty
 
 Wolf Game is offering up to $50,000 as a bounty for any vulnerabilities found. The amount received by the party that notifies me of a vulnerability will be determined based on severity.
@@ -43,6 +40,12 @@ The following smart contracts are currently in scope:
 - Cave Game Pouch Claim [Github](post%20cave%20game/CaveGamePouchClaim.sol)
 
 - Gem Redemption [Github](post%20cave%20game/GemRedemption.sol)
+
+- Wolf Game Bridge [Github](full%20game/WolfGameBridge.sol)
+
+- Woolf Gen 2 [Github](full%20game/WoolfGen2.sol)
+
+- Wool Bridge [Github](full%20game/WoolBridge.sol)
 
 Happy Hunting,
 
